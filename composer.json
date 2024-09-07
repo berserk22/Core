@@ -1,0 +1,19 @@
+{
+  "name": "skeleton-app/core",
+  "description": "SkeletonApp Core",
+  "require": {
+    "php": ">=8.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "Core\\": "/"
+    }
+  },
+  "extra": {
+    "branch-alias": {
+      "dev-master": "master"
+    }
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": false
+}
