@@ -2,7 +2,35 @@
   "name": "skeleton-app/core",
   "description": "SkeletonApp Core",
   "require": {
-    "php": ">=8.2"
+    "php": ">=8.2",
+    "php-di/php-di": "*",
+    "slim/slim": "4.*",
+    "slim/psr7": "1.7.*",
+    "slim/http": "1.2.*",
+    "slim/csrf": "*",
+    "guzzlehttp/psr7": "2.4.*",
+    "httpsoft/http-message":  "1.*",
+    "httpsoft/http-server-request": "1.0.5",
+    "laminas/laminas-diactoros": "2.*",
+    "nyholm/psr7": "1.8.*",
+    "monolog/monolog": "3.2.*",
+    "illuminate/events": "*",
+    "illuminate/pagination": "*",
+    "symfony/finder": "6.2.*",
+    "symfony/filesystem": "6.2.*",
+    "respect/validation": "^2.2",
+    "symfony/console": "6.1.*",
+    "ext-curl": "*",
+    "ext-simplexml": "*",
+    "ext-gd": "*",
+    "ext-libxml": "*"
+  },
+  "require-dev": {
+    "tracy/tracy": "*",
+    "jangregor/phpstan-prophecy": "^1.0.0",
+    "phpunit/phpunit": "^10.5.30",
+    "phpstan/phpstan": "^1.11.11",
+    "phpspec/prophecy-phpunit": "^2.2"
   },
   "autoload": {
     "psr-4": {
