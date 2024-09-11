@@ -1,6 +1,7 @@
 {
   "name": "skeleton-app/core",
   "description": "SkeletonApp Core",
+  "type": "core",
   "require": {
     "php": ">=8.2",
     "php-di/php-di": "*",
@@ -39,7 +40,7 @@
   },
   "extra": {
     "branch-alias": {
-      "dev-master": "master"
+      "dev-main": "main"
     }
   },
   "minimum-stability": "dev",
