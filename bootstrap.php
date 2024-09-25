@@ -38,6 +38,7 @@ header('Permissions-Policy: geolocation=(self "'.$http.$domain.'/"), microphone=
 header("X-Frame-Options: SAMEORIGIN");
 header("X-XSS-Protection: 1; mode=block");
 
+define('DOMAIN_URI', $http.$domain);
 define('ROOT_DIR', realpath(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR);
 define('WEB_ROOT_DIR', realpath(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."www")."");
 
@@ -48,6 +49,13 @@ try {
         $capsule = $application->getContainer()->get("database");
         Debugger::getBar()->addPanel(new Panel($capsule->getConnection()->getQueryLog()));
     }
+    if (isset($capsule)){
+        $capsule->getConnection()->disconnect();
+    }
+    else if ($application->getContainer()->has("database")){
+        $capsule = $application->getContainer()->get("database");
+        $capsule->getConnection()->disconnect();
+    }
 } catch (Exception $e) {
     echo "<pre>";
     var_dump([
@@ -55,7 +63,7 @@ try {
         'file'=>$e->getFile(),
         'code'=>$e->getCode(),
         'message'=>$e->getMessage(),
-        'trace'=>$e->getTrace()
+        //'trace'=>$e->getTrace()
     ]);
     echo "</pre>";
 }
