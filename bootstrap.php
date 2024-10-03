@@ -52,7 +52,7 @@ try {
     if (isset($capsule)){
         $capsule->getConnection()->disconnect();
     }
-    else if ($application->getContainer()->has("database")){
+    elseif ($application->getContainer()->has("database")){
         $capsule = $application->getContainer()->get("database");
         $capsule->getConnection()->disconnect();
     }
