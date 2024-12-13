@@ -10,6 +10,7 @@ namespace Core\Module;
 use Core\Traits\App;
 use DI\DependencyException;
 use DI\NotFoundException;
+use Exception;
 
 class Router {
 
@@ -52,7 +53,7 @@ class Router {
             else {
                 $this->getApp()->group($this->router, $this->controller);
             }
-        } catch (\Exception $ex) {
+        } catch (Exception $ex) {
             die ($ex->getMessage());
         }
     }

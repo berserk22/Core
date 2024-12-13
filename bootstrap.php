@@ -6,7 +6,7 @@ use Tracy\Debugger;
 
 require_once '../vendor/autoload.php';
 
-ini_set('display_errors', 0);
+ini_set('display_errors', 1);
 
 date_default_timezone_set('Europe/Berlin');
 
@@ -15,6 +15,12 @@ $server_name = $_SERVER["SERVER_NAME"];
 $http = ($port==='443'?'https':'http').'://';
 
 $domain = $server_name.($port!=='80'&&$port!=='443'?':'.$port:'');
+
+define('DOMAIN_URI', $http.$domain);
+define('ROOT_DIR', realpath(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR);
+define('WEB_ROOT_DIR', realpath(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."www")."");
+
+ini_set('session.save_path', ROOT_DIR.'data/session');
 
 header('Access-Control-Allow-Origin: '.$domain);
 header('Access-Control-Allow-Credentials: true');
@@ -30,17 +36,12 @@ foreach ($headers as $key => $value){
 }
 header($headerCSP);
 
-
 header("Strict-Transport-Security: max-age=600");
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
 header('Permissions-Policy: geolocation=(self "'.$http.$domain.'/"), microphone=()');
 header("X-Frame-Options: SAMEORIGIN");
 header("X-XSS-Protection: 1; mode=block");
-
-define('DOMAIN_URI', $http.$domain);
-define('ROOT_DIR', realpath(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR);
-define('WEB_ROOT_DIR', realpath(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."www")."");
 
 try {
     $application = new Application();
