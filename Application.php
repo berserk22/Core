@@ -81,21 +81,28 @@ class Application {
         $this->handler();
         $this->getApp()->addMiddleware(new Middleware());
 
-        $this->getApp()->getRouteCollector()->setCacheFile($this->getProjectDir()."cache/router/route.php");
+        $cacheDir = $this->getProjectDir() . "cache/router/";
+        if (!is_dir($cacheDir)) {
+            mkdir($cacheDir, 0755, true);
+        }
+        $this->getApp()->getRouteCollector()->setCacheFile($cacheDir . "route.php");
 
         $config = $this->getContainer()->get('config')->getSetting('slim');
-
+        $logDir = $this->getProjectDir() . $config['logger']['path'];
+        if (!is_dir($logDir)) {
+            mkdir($logDir, 0755, true);
+        }
         $logger = new Logger($config['logger']['name']);
 
         $streamHandler = new StreamHandler(
-            $this->getProjectDir().$config['logger']['path'].$config['logger']['name']."_".date("dmY").".log",
+            $logDir . $config['logger']['name'] . "_" . date("dmY") . ".log",
             $config['logger']['level']
         );
         $logger->pushHandler($streamHandler);
         $logger->useMicrosecondTimestamps(false);
 
         // Error Handler
-        if ($config['customHandler']){
+        if (isset($config['customHandler']) && $config['customHandler']){
             $errorMiddleware = $this->getApp()->addErrorMiddleware(
                 $config['displayErrorDetails'],
                 $config['logError'],
@@ -121,7 +128,11 @@ class Application {
      */
     protected function getSettings(): array {
         $config = (new Config($this))->load($this->environment);
-        date_default_timezone_set($config->getSetting()['slim']['timezone']);
+        $settings = $config->getSetting();
+        if (!isset($settings['slim']['timezone'])) {
+            throw new LogicException('Config must contain slim.timezone setting');
+        }
+        date_default_timezone_set($settings['slim']['timezone']);
         return ['config' => $config];
     }
 
@@ -179,10 +190,12 @@ class Application {
      */
     protected function initializeModules(): void {
         foreach ($this->registry() as $module) {
-            /* @var $module Provider */
+            if (!method_exists($module, 'getName')) {
+                throw new LogicException(sprintf('Module "%s" does not have a getName method', get_class($module)));
+            }
             $name = $module->getName();
-            if (isset($this->modules[$name])) {
-                throw new LogicException(sprintf('Trying to register two bundles with the same name "%s"', $name));
+            if (!is_string($name)) {
+                throw new LogicException(sprintf('Module "%s" getName method must return a string', get_class($module)));
             }
             $this->initializeModuleEvents($module, $this->events[self::EVENT_INIT]);
             $this->modules[$name] = $module;
@@ -202,6 +215,9 @@ class Application {
      * @return Provider
      */
     public function getModule($name) :Provider {
+        if (!is_string($name)) {
+            throw new InvalidArgumentException('Module name must be a string');
+        }
         if (!isset($this->modules[$name])) {
             throw new InvalidArgumentException(
                 sprintf('Module "%s" does not exist or it is not enabled. Maybe you forgot to
@@ -220,6 +236,9 @@ class Application {
      * @return void
      */
     protected function initializeModuleEvents(Provider $module, array $events): void {
+        if (!class_exists(get_class($module))) {
+            throw new LogicException(sprintf('Class "%s" does not exist', get_class($module)));
+        }
         $reflection = new ReflectionClass(get_class($module));
         foreach ($events as $event) {
             if (!$reflection->hasMethod($event)) {
@@ -231,6 +250,9 @@ class Application {
 
     protected function fireModuleEvent(array $events): void {
         foreach ($events as $event) {
+            if (!is_string($event)) {
+                throw new InvalidArgumentException('Event name must be a string');
+            }
             $this->dispatcher->dispatch($event, [$this]);
         }
     }
@@ -240,6 +262,9 @@ class Application {
      */
     public function getRequest(): ServerRequestInterface {
         $serverRequestCreator = ServerRequestCreatorFactory::create();
+        if (!method_exists($serverRequestCreator, 'createServerRequestFromGlobals')) {
+            throw new LogicException('ServerRequestCreatorFactory::create() must return an object with createServerRequestFromGlobals method');
+        }
         return $serverRequestCreator->createServerRequestFromGlobals();
     }
 
