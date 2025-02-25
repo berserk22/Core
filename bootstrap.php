@@ -22,7 +22,7 @@ define('WEB_ROOT_DIR', realpath(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPAR
 
 ini_set('session.save_path', ROOT_DIR.'data/session');
 
-header('Access-Control-Allow-Origin: '.$domain);
+header('Access-Control-Allow-Origin: https://'.$domain);
 header('Access-Control-Allow-Credentials: true');
 header('Access-Control-Allow-Headers: Origin, Content-Type, Accept, Authorization, X-Requested-With, XMLHttpRequest');
 header('Access-Control-Allow-Methods: POST, GET, PUT, DELETE');
