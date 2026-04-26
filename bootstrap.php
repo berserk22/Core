@@ -16,7 +16,13 @@ $http = ($port==='443'?'https':'http').'://';
 
 $domain = $server_name.($port!=='80'&&$port!=='443'?':'.$port:'');
 
-header('Access-Control-Allow-Origin: '.$domain);
+define('DOMAIN_URI', $http.$domain);
+define('ROOT_DIR', realpath(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR);
+define('WEB_ROOT_DIR', realpath(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."www")."");
+
+ini_set('session.save_path', ROOT_DIR.'data/session');
+
+header('Access-Control-Allow-Origin: https://'.$domain);
 header('Access-Control-Allow-Credentials: true');
 header('Access-Control-Allow-Headers: Origin, Content-Type, Accept, Authorization, X-Requested-With, XMLHttpRequest');
 header('Access-Control-Allow-Methods: POST, GET, PUT, DELETE');
@@ -30,16 +36,12 @@ foreach ($headers as $key => $value){
 }
 header($headerCSP);
 
-
 header("Strict-Transport-Security: max-age=600");
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
 header('Permissions-Policy: geolocation=(self "'.$http.$domain.'/"), microphone=()');
 header("X-Frame-Options: SAMEORIGIN");
 header("X-XSS-Protection: 1; mode=block");
-
-define('ROOT_DIR', realpath(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR);
-define('WEB_ROOT_DIR', realpath(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."www")."");
 
 try {
     $application = new Application();
@@ -48,6 +50,13 @@ try {
         $capsule = $application->getContainer()->get("database");
         Debugger::getBar()->addPanel(new Panel($capsule->getConnection()->getQueryLog()));
     }
+    if (isset($capsule)){
+        $capsule->getConnection()->disconnect();
+    }
+    elseif ($application->getContainer()->has("database")){
+        $capsule = $application->getContainer()->get("database");
+        $capsule->getConnection()->disconnect();
+    }
 } catch (Exception $e) {
     echo "<pre>";
     var_dump([
@@ -55,7 +64,7 @@ try {
         'file'=>$e->getFile(),
         'code'=>$e->getCode(),
         'message'=>$e->getMessage(),
-        'trace'=>$e->getTrace()
+        //'trace'=>$e->getTrace()
     ]);
     echo "</pre>";
 }
