@@ -39,17 +39,16 @@ class Dispatcher implements Events\Dispatcher {
      * @return bool
      */
     public function hasListeners(string $event): bool {
-        return isset($this->listeners[$event]) || isset($this->wildcards[$event]);
+        return !empty($this->listeners[$event]) || !empty($this->getWildcardListeners($event));
     }
 
     /**
      * @param string $event
-     * @return array|bool
+     * @return array
      */
-    public function getListeners(string $event): array|bool {
+    public function getListeners(string $event): array {
         $listener = $this->listeners[$event] ?? [];
-        $listener = array_merge($listener, $this->getWildcardListeners($event));
-        return class_exists($event, false)?:$listener;
+        return array_merge($listener, $this->getWildcardListeners($event));
     }
 
     /**
@@ -58,20 +57,29 @@ class Dispatcher implements Events\Dispatcher {
      * @param bool $halt
      * @return mixed
      */
+    /**
+     * @param string|object $event
+     * @param array $payload
+     * @param bool $halt
+     * @return mixed
+     */
     public function dispatch($event, array $payload = [], bool $halt = false): mixed {
-        list($event, $payload) = $this->parseEventAndPayload($event, $payload);
+        [$event, $payload] = $this->parseEventAndPayload($event, $payload);
         $responses = [];
         foreach ($this->getListeners($event) as $listener) {
+            if (!is_object($listener) || !method_exists($listener, $event)) {
+                continue;
+            }
             $response = call_user_func_array([$listener, $event], $payload);
             if ($halt && !is_null($response)) {
                 return $response;
             }
-            if (false === $response) {
+            if ($response === false) {
                 break;
             }
             $responses[] = $response;
         }
-        return $halt?null:$responses;
+        return $halt ? null : $responses;
     }
 
     /**

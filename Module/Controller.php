@@ -7,17 +7,18 @@
 
 namespace Core\Module;
 
-use Core\Application;
 use Core\Config\Config;
 use Core\Traits\App;
 use Core\Utils\Helper;
 use DI\DependencyException;
 use DI\NotFoundException;
 use Illuminate\Database\Capsule\Manager;
-use Modules\Elastic\ElasticSearch;
 use Modules\MsgQueue\MsgQueue;
 use Modules\Session\SessionManager;
 use Modules\View\ViewManager;
+use Monolog\Logger;
+use Monolog\Handler\StreamHandler;
+use Random\RandomException;
 use Slim\Routing\RouteCollectorProxy;
 
 abstract class Controller {
@@ -30,10 +31,20 @@ abstract class Controller {
     private ?Config $config = null;
 
     /**
+     * @var Logger|null
+     */
+    private ?Logger $loggerInstance = null;
+
+    /**
+     * @var string
+     */
+    public string $contentType = "text/html";
+
+    /**
      * @param RouteCollectorProxy|null $routeCollectorProxy
      * @return void
      */
-    public function __invoke(RouteCollectorProxy $routeCollectorProxy = null): void {
+    public function __invoke(?RouteCollectorProxy $routeCollectorProxy = null): void {
         $this->registerFunctions();
     }
 
@@ -65,40 +76,14 @@ abstract class Controller {
     }
 
     /**
-     * @return Helper|string
+     * @return MsgQueue|null
      * @throws DependencyException
      * @throws NotFoundException
      */
-    public function getHelper(): Helper|string {
-        $helper = "Core\Helper";
-        if (!$this->getContainer()->has($helper)){
-            $this->getContainer()->set($helper, function(){
-                return new Helper();
-            });
-        }
-        return $this->getContainer()->get($helper);
-    }
-
-    /**
-     * @return ElasticSearch|null
-     * @throws DependencyException
-     * @throws NotFoundException
-     */
-    public function getSearch(): ElasticSearch|null {
-        if ($this->getContainer()->has('ElasticSearch')){
-            return $this->getContainer()->get('ElasticSearch');
-        }
-        else {
+    protected function getQueue(): ?MsgQueue {
+        if (!$this->getContainer()->has('MsgQueue\Queue')) {
             return null;
         }
-    }
-
-    /**
-     * @return MsgQueue
-     * @throws DependencyException
-     * @throws NotFoundException
-     */
-    protected function getQueue(): MsgQueue {
         return $this->getContainer()->get('MsgQueue\Queue');
     }
 
@@ -110,16 +95,59 @@ abstract class Controller {
      * @throws NotFoundException
      */
     public function setMessage(string $event, mixed $message): void {
-        $this->getQueue()->setMessage($event, $message);
+        $queue = $this->getQueue();
+        if ($queue === null) {
+            return;
+        }
+        $queue->setMessage($event, $message);
     }
 
     /**
-     * @return Manager
+     * @return Manager|null
      * @throws DependencyException
      * @throws NotFoundException
      */
-    public function getDB(): Manager {
+    public function getDB(): ?Manager {
+        if (!$this->getContainer()->has('database')) {
+            return null;
+        }
         return $this->getContainer()->get('database');
+    }
+
+    /**
+     * @return Logger
+     * @throws DependencyException
+     * @throws NotFoundException
+     */
+    public function getLogger(): Logger {
+        if ($this->loggerInstance !== null) {
+            return $this->loggerInstance;
+        }
+        if ($this->getContainer()->has('logger')) {
+            $this->loggerInstance = $this->getContainer()->get('logger');
+            return $this->loggerInstance;
+        }
+        $config = $this->getConfig('slim');
+        $logDir = $this->getProjectDir() . $config['logger']['path'];
+        if (!is_dir($logDir)) {
+            mkdir($logDir, 0755, true);
+        }
+        $logger = new Logger($config['logger']['name']);
+        $streamHandler = new StreamHandler(
+            $logDir . $config['logger']['name'] . "_" . date("dmY") . ".log",
+            $config['logger']['level']
+        );
+        $logger->pushHandler($streamHandler);
+        $logger->useMicrosecondTimestamps(false);
+        $this->loggerInstance = $logger;
+        return $this->loggerInstance;
+    }
+
+    /**
+     * @return string
+     */
+    private function getProjectDir(): string {
+        return dirname(dirname(dirname(__DIR__))) . '/';
     }
 
     /**
@@ -143,6 +171,19 @@ abstract class Controller {
             }
         }
         return $config;
+    }
+
+    /**
+     * @return string
+     * @throws RandomException
+     */
+    public function getUUID(): string {
+        $data = random_bytes(16);
+        // Set version to 0100 (UUID v4)
+        $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
+        // Set bits 6-7 to 10 (variant)
+        $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 
     abstract protected function registerFunctions();

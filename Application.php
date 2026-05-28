@@ -25,6 +25,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use ReflectionClass;
 use Slim\Factory\AppFactory;
 use Slim\Factory\ServerRequestCreatorFactory;
+use Slim\Psr7\Factory\ResponseFactory;
 
 class Application {
 
@@ -54,7 +55,7 @@ class Application {
     /**
      * @var string development|production
      */
-    public string $environment = 'development';
+    public string $environment = 'production';
 
     /**
      * @var array
@@ -74,8 +75,14 @@ class Application {
      * @throws Exception
      */
     public function __construct() {
-        $this->setContainer(ContainerFactory::createInstance($this->getSettings()));
+        $this->setContainer(
+            ContainerFactory::createInstance(
+                $this->getSettings(),
+                $this->environment
+            )
+        );
         AppFactory::setContainer($this->getContainer());
+        AppFactory::setResponseFactory(new ResponseFactory());
         $this->setApp(AppFactory::create());
         $this->dispatcher = new Dispatcher();
         $this->handler();
@@ -100,6 +107,7 @@ class Application {
         );
         $logger->pushHandler($streamHandler);
         $logger->useMicrosecondTimestamps(false);
+        $this->getContainer()->set('logger', $logger);
 
         // Error Handler
         if (isset($config['customHandler']) && $config['customHandler']){
@@ -266,6 +274,23 @@ class Application {
             throw new LogicException('ServerRequestCreatorFactory::create() must return an object with createServerRequestFromGlobals method');
         }
         return $serverRequestCreator->createServerRequestFromGlobals();
+    }
+
+    /**
+     * Closes all open connections gracefully.
+     * Called explicitly via finally block and registered as shutdown handler.
+     */
+    public function terminate(): void {
+        try {
+            if ($this->getContainer()->has('database')) {
+                $this->getContainer()
+                    ->get('database')
+                    ->getConnection()
+                    ->disconnect();
+            }
+        } catch (\Throwable $e) {
+            // Соединение уже закрыто или контейнер уничтожен — игнорируем
+        }
     }
 
 }

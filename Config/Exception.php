@@ -7,6 +7,6 @@
 
 namespace Core\Config;
 
-class Exception extends \RuntimeException {
+class Exception extends \LogicException {
 
 }

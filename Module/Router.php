@@ -44,7 +44,7 @@ class Router {
                 if (isset($groups[$this->routerType])){
                     $group = $groups[$this->routerType];
                     $this->router = $group['method'];
-                    $routerMethods->map($this->routerType, [$group['method']], $group['instance']);
+                    $routerMethods->map($this->routerType, [$group['method']], $this->controller);
                 }
                 else {
                     $routerMethods->map($this->routerType, [$this->router], $this->controller);
@@ -54,37 +54,71 @@ class Router {
                 $this->getApp()->group($this->router, $this->controller);
             }
         } catch (Exception $ex) {
-            die ($ex->getMessage());
+            die($ex->getMessage());
         }
     }
 
     /**
-     * @param $controller
+     * @param string|object $controller
      * @return void
      * @throws DependencyException
      * @throws NotFoundException
      */
-    public function getMapBuilder($controller): void {
+    public function getMapBuilder(string|object $controller): void {
+        if (is_object($controller)) {
+            $controller = get_class($controller);
+        }
+
+        if (!class_exists($controller)) {
+            throw new \InvalidArgumentException(
+                sprintf('Controller class "%s" does not exist.', $controller)
+            );
+        }
+
         foreach ($this->mapForUriBuilder as $key => $value) {
-            $route_add = false;
-            if ($this->getApcuCache() !== null){
-                $routers = $this->getApcuCache()->get('routers');
-                if (isset($routers[$this->routerType.'_'.strtolower($key)])){
-                    $route = $routers[$this->routerType.'_'.strtolower($key)][0];
-                    $this->getApp()->map(
-                        $route['method'],
-                        $route['route'],
-                        [$route['class'], $route['action']]
-                    )->setName($this->routerType.'_'.strtolower($key));
-                    $route_add = true;
+            $cacheKey = $this->routerType . '_' . strtolower($key);
+            $routeAdded = false;
+            if ($this->getApcuCache() !== null) {
+                // get() возвращает сразу массив роутеров — не объект
+                $routers = $this->getApcuCache()->get('routers'); // ← массив или null
+                // Защита если кеш пустой
+                if (!is_array($routers)) {
+                    $routers = [];
+                }
+                if (isset($routers[$cacheKey])) {
+                    $route = $routers[$cacheKey][0];
+                    if ($route['class'] !== $controller) {
+                        // DB has outdated class — use DB URL but current controller/action
+                        $this->getApp()->map(
+                            $route['method'],
+                            $route['route'],
+                            [$controller, $value['callback']]
+                        )->setName($cacheKey);
+                    } else {
+                        $this->getApp()->map(
+                            $route['method'],
+                            $route['route'],
+                            [$route['class'], $route['action']]
+                        )->setName($cacheKey);
+                    }
+                    $routeAdded = true;
                 }
             }
-            if ($route_add !== true){
-                $this->getApp()->map(
+            if ($routeAdded !== true) {
+                $router = $this->getApp()->map(
                     $value['method'],
-                    $this->router.$value['pattern'],
+                    $this->router . $value['pattern'],
                     [$controller, $value['callback']]
-                )->setName($this->routerType.'_'.strtolower($key));
+                )->setName($cacheKey);
+                if (isset($value['middleware'])) {
+                    $factory = $this->getContainer()->get('MiddlewareFactory');
+                    foreach ((array)$value['middleware'] as $mw) {
+                        $middleware = $factory->create($mw);
+                        if ($middleware) {
+                            $router->add($middleware);
+                        }
+                    }
+                }
             }
         }
     }
@@ -100,20 +134,16 @@ class Router {
         $routers = $this->getApcuCache()->get('routers');
         if (isset($routers[$type])){
             $route = $routers[$type][0]['route'];
-            // Überprüfen, ob Platzhalter wie `{parameter:regex}` vorhanden sind
             if (str_contains($route, '{')) {
-                // Ersetze die Platzhalter in einem Schritt
                 $route = preg_replace_callback(
                     "/{(\w+):[^\}]+}/",
                     function ($matches) use ($obj) {
-                        // `$matches[1]` enthält den Namen des Platzhalters, z.B. `carInfo`
                         $paramName = $matches[1];
-                        return $obj[$paramName] ?? $matches[0]; // Ersetze durch Wert aus `$obj` oder behalte Platzhalter bei
+                        return $obj[$paramName] ?? $matches[0];
                     },
                     $route
                 );
             }
-
             return $route;
         }
         else {

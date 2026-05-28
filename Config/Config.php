@@ -137,20 +137,36 @@ class Config implements \ArrayAccess, \Iterator, \Countable {
      * @return mixed
      * @throws \Exception
      */
-    protected function merge(array $parsed, string $environment):array {
-        $current = $parsed[$environment];
-        $merged = $current['settings'];
+    protected function merge(array $parsed, string $environment): array {
+        // Проверяем что запрошенное окружение существует
+        if (!array_key_exists($environment, $parsed)) {
+            throw new Exception(
+                sprintf('Unknown environment "%s"', $environment)
+            );
+        }
 
+        $current = $parsed[$environment];
+        $merged  = $current['settings'];
+
+        // Поднимаемся по цепочке наследования
         while ($current['parent'] !== null) {
             if (!array_key_exists($current['parent'], $parsed)) {
-                throw new Exception("Invalid parent environment '
-                {$current['parent']}' for environment '{$current['name']}'");
+                throw new Exception(
+                    sprintf(
+                        'Parent environment "%s" not found for "%s"',
+                        $current['parent'],
+                        $current['name']
+                    )
+                );
             }
 
             $parent = $parsed[$current['parent']];
-            $merged = array_merge($parent['settings'], $merged);
+
+            // Дочерние настройки имеют приоритет над родительскими
+            $merged  = array_merge($parent['settings'], $merged);
             $current = $parent;
         }
+
 
         return $merged;
     }
@@ -183,39 +199,82 @@ class Config implements \ArrayAccess, \Iterator, \Countable {
     }
 
     /**
-     * @param array $raw
-     * @param string $separator
+     * Парсит секции INI-файла в структуру с поддержкой наследования.
+     *
+     * Поддерживаемые форматы секций:
+     *   [common]                — базовое окружение без родителя
+     *   [development : common]  — development наследует common
+     *   [production : common]   — production наследует common
+     *
+     * @param array  $raw       Результат parse_ini_file() с секциями
+     * @param string $separator Разделитель наследования (по умолчанию ':')
      * @return array
      */
-    protected function parseSettings(array $raw, string $separator = ':'):array {
+    protected function parseSettings(array $raw, string $separator = ':'): array {
         $parsed = [];
-        foreach ($raw as $name => $settings) {
-            if (!str_contains($name, $separator)) {
-                $name = trim($name);
-                $parsed[$name] = ['name' => trim($name), 'settings' => $settings, 'parent' => null];
+
+        foreach ($raw as $sectionName => $settings) {
+
+            // Секция без наследования: [common], [production]
+            if (!str_contains($sectionName, $separator)) {
+                $name = trim($sectionName);
+
+                // Секция уже была создана как заглушка — дополняем настройками
+                if (isset($parsed[$name])) {
+                    $parsed[$name]['settings'] = array_merge(
+                        $parsed[$name]['settings'],
+                        $settings
+                    );
+                } else {
+                    $parsed[$name] = [
+                        'name'     => $name,
+                        'settings' => $settings,
+                        'parent'   => null,
+                    ];
+                }
                 continue;
             }
-            list($name, $parent) = explode($separator, $name);
-            $name = trim($name);
-            $parent = trim($parent);
-            if (isset($parsed[trim($parent)])) {
-                $parsed[$parent]['parent'] = $name;
+
+            // Секция с наследованием: [development : common]
+            [$child, $parent] = array_map('trim', explode($separator, $sectionName, 2));
+
+            // Валидация — имена не должны быть пустыми
+            if ($child === '' || $parent === '') {
+                throw new Exception(
+                    sprintf(
+                        'Invalid section format "%s": child and parent names must not be empty.',
+                        $sectionName
+                    )
+                );
             }
-            if (isset($parsed[$name]['settings'])) {
-                $parsed[$name] = [
-                    'name' => $name,
-                    'settings' => array_merge($parsed[$name]['settings'], $settings),
-                    'parent' => null
+
+            // Регистрируем дочернее окружение
+            if (isset($parsed[$child])) {
+                // Уже существует как заглушка — дополняем
+                $parsed[$child]['settings'] = array_merge(
+                    $parsed[$child]['settings'],
+                    $settings
+                );
+                $parsed[$child]['parent'] = $parent;
+            } else {
+                $parsed[$child] = [
+                    'name'     => $child,
+                    'settings' => $settings,
+                    'parent'   => $parent,
                 ];
             }
-            if (isset($parsed[$parent]['settings'])) {
+
+            // Если родитель ещё не зарегистрирован — создаём заглушку
+            // Будет заполнена когда дойдём до его секции
+            if (!isset($parsed[$parent])) {
                 $parsed[$parent] = [
-                    'name' => $name,
-                    'settings' => array_merge($parsed[$parent]['settings'], $settings),
-                    'parent' => null
+                    'name'     => $parent,
+                    'settings' => [],
+                    'parent'   => null,
                 ];
             }
         }
+
         return $parsed;
     }
 
@@ -294,7 +353,9 @@ class Config implements \ArrayAccess, \Iterator, \Countable {
      * @return void
      */
     public function offsetSet(mixed $offset, mixed $value): void {
-        throw new Exception("configuration is immutable!");
+        throw new Exception(
+            sprintf('Config is immutable. Attempted to set key "%s".', $offset)
+        );
     }
 
     /**
@@ -302,7 +363,9 @@ class Config implements \ArrayAccess, \Iterator, \Countable {
      * @return void
      */
     public function offsetUnset(mixed $offset): void {
-        throw new Exception("configuration is immutable!");
+        throw new Exception(
+            sprintf('Config is immutable. Attempted to unset key "%s".', $offset)
+        );
     }
 
     /**

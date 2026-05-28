@@ -24,9 +24,9 @@ interface Dispatcher {
 
     /**
      * @param string $event
-     * @return array|bool
+     * @return array
      */
-    public function getListeners(string $event): array|bool;
+    public function getListeners(string $event): array;
 
     /**
      * @param $event
