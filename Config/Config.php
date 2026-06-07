@@ -92,6 +92,9 @@ class Config implements \ArrayAccess, \Iterator, \Countable {
             if (in_array($extension, $this->ignore[self::EXTENSION])) {
                 continue;
             }
+            if (!array_key_exists($extension, $this->parser)) {
+                continue;
+            }
             if (in_array($file, $this->ignore[self::FILE])) {
                 continue;
             }
